@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from 'react'
 import {
     Navigate,
@@ -17,13 +18,23 @@ import Perfil from './pages/Perfil.jsx'
 import Login from './pages/Login.jsx'
 import Cadastro from './pages/Cadastro.jsx'
 
-import { lerEstado, salvarEstado } from './utils/storage.js'
-import { codificarSenha, senhaConfere } from './utils/senha.js'
+import {
+    atualizarPaciente,
+    cadastrarUsuario as apiCadastrarUsuario,
+    carregarEstado,
+    criarAfericao,
+    criarPaciente,
+    entrar as apiEntrar,
+    removerAfericao as apiRemoverAfericao,
+    removerPaciente as apiRemoverPaciente,
+    sair as apiSair,
+    selecionarPaciente,
+} from './api/cardioiaApi.js'
 
 import './App.css'
 
 export default function App() {
-    const [inicial] = useState(lerEstado)
+    const [inicial] = useState(carregarEstado)
 
     const [usuarios, setUsuarios] = useState(inicial.usuarios)
     const [sessaoUsuarioId, setSessaoUsuarioId] = useState(
@@ -63,110 +74,63 @@ export default function App() {
         document.title = titulos[local.pathname] ?? 'CardioIA'
     }, [local.pathname])
 
-    useEffect(() => {
-        salvarEstado({
-            usuarios,
-            sessaoUsuarioId,
-            pacientes,
-            pacienteAtualId,
-            afericoes,
-        })
-    }, [
-        usuarios,
-        sessaoUsuarioId,
-        pacientes,
-        pacienteAtualId,
-        afericoes,
-    ])
+    function aplicar(estado) {
+        setUsuarios(estado.usuarios)
+        setSessaoUsuarioId(estado.sessaoUsuarioId)
+        setPacientes(estado.pacientes)
+        setPacienteAtualId(estado.pacienteAtualId)
+        setAfericoes(estado.afericoes)
+    }
 
     function cadastrarUsuario(dados) {
-        const usuario = dados.usuario.trim().toLowerCase()
+        const resultado = apiCadastrarUsuario(dados)
 
-        if (usuarios.some((i) => i.usuario === usuario)) {
-            return {
-                ok: false,
-                erro: 'Este usuário já está cadastrado neste navegador.',
-            }
-        }
+        if (!resultado.ok) return resultado
 
-        const novo = {
-            id: crypto.randomUUID(),
-            nome: dados.nome,
-            usuario,
-            senha: codificarSenha(dados.senha),
-            criadoEm: new Date().toISOString(),
-        }
-
-        setUsuarios((p) => [novo, ...p])
-        setSessaoUsuarioId(novo.id)
+        aplicar(resultado.estado)
         navigate('/')
 
         return { ok: true }
     }
 
     function entrar(dados) {
-        const usuario = dados.usuario.trim().toLowerCase()
-        const encontrado = usuarios.find((i) => i.usuario === usuario)
+        const resultado = apiEntrar(dados)
 
-        if (
-            !encontrado ||
-            !senhaConfere(dados.senha, encontrado.senha)
-        ) {
-            return {
-                ok: false,
-                erro: 'Usuário ou senha inválidos.',
-            }
-        }
+        if (!resultado.ok) return resultado
 
-        setSessaoUsuarioId(encontrado.id)
+        aplicar(resultado.estado)
         navigate('/')
 
         return { ok: true }
     }
 
     function sair() {
-        setSessaoUsuarioId(null)
+        aplicar(apiSair())
         navigate('/login')
     }
 
     function salvarPaciente(dados) {
-        const novo = {
-            id: crypto.randomUUID(),
-            ...dados,
-            criadoEm: new Date().toISOString(),
-        }
-
-        setPacientes((p) => [novo, ...p])
-        setPacienteAtualId(novo.id)
+        aplicar(criarPaciente(dados))
     }
 
     function editarPaciente(id, dados) {
-        setPacientes((p) =>
-            p.map((i) => (i.id === id ? { ...i, ...dados } : i)),
-        )
+        aplicar(atualizarPaciente(id, dados))
     }
 
     function removerPaciente(id) {
-        setPacientes((p) => p.filter((i) => i.id !== id))
-        setAfericoes((p) => p.filter((i) => i.pacienteId !== id))
-        setPacienteAtualId((atual) => (atual === id ? null : atual))
+        aplicar(apiRemoverPaciente(id))
+    }
+
+    function escolherPaciente(id) {
+        aplicar(selecionarPaciente(id))
     }
 
     function salvarAfericao(dados) {
-        if (!pacienteAtualId) return
-
-        const nova = {
-            id: crypto.randomUUID(),
-            pacienteId: pacienteAtualId,
-            ...dados,
-            registradoEm: new Date().toISOString(),
-        }
-
-        setAfericoes((p) => [nova, ...p])
+        aplicar(criarAfericao(dados))
     }
 
     function removerAfericao(id) {
-        setAfericoes((p) => p.filter((i) => i.id !== id))
+        aplicar(apiRemoverAfericao(id))
     }
 
     return (
@@ -226,7 +190,7 @@ export default function App() {
                             onSalvar={salvarPaciente}
                             onEditar={editarPaciente}
                             onRemover={removerPaciente}
-                            onSelecionar={setPacienteAtualId}
+                            onSelecionar={escolherPaciente}
                         />
                     }
                 />
