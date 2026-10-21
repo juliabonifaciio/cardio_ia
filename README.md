@@ -1,7 +1,5 @@
 # CardioIA
 
-Projeto educacional React + Vite da aula de 23/09/2026.
-
 ## Rodar
 
 ```bash
